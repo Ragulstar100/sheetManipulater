@@ -1,4 +1,4 @@
 npm install idb-IndexedDb
 npm install xlsx-sheetJs Xl Sheet and csv File Handler
-npm install chart.js-For Chart
-npm install react-chartjs-2 chart.js-react line
+
+npm install echarts-Chart
