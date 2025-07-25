@@ -11,19 +11,36 @@ import {
   Title,
   Tooltip,
   Legend,
+  RadialLinearScale,
+  ArcElement,
 } from 'chart.js';
 import { Line, PolarArea } from 'react-chartjs-2';
 import { ExcelCsvReader, excelDateToJSDate } from './assets/ExcelCsvReader';
 
 
+ChartJS.register(RadialLinearScale, ArcElement, Tooltip, Legend);
+
 const GameData={
   score:"Score",
-  dataPlayed:"Date Played"
+  dataPlayed:"Date Played",
+  gameName:'Game Name',
+  levelReached:'Level Reached'
 }
 
-function dataFilter(data){
+function dataFilter(data,playerID,gameName){
 
-const labels = [5,4,6,8,9];
+
+let obj=()=>{
+  let _labels=Array.from(new Set(data.map((e)=>e[GameData.gameName])))
+  let _maxArray=[]
+  _labels.forEach((n)=>{
+    _maxArray.push(Math.max(...data.filter((e=>e[GameData.gameName]==n)).map((e)=>e[GameData.levelReached])))
+  })
+  return{
+    labels:_labels,
+    maxArray:_maxArray
+  }
+}
 
 return {
   rawData:data,
@@ -31,7 +48,7 @@ return {
   lineCharData:{
   labels:fiterEvenDays(data.map((e)=> e[GameData.dataPlayed]),3).map((e,i)=>i*3),
   datasets: [{
-    label: 'Days',
+    label: 'Levels',
     data:data.map((e)=>e[GameData.score]),
     fill: false,
     borderColor: 'rgb(75, 192, 192)',
@@ -39,16 +56,10 @@ return {
   }]
   },
   poloarAreaChartData:{
-  labels: [
-    'Red',
-    'Green',
-    'Yellow',
-    'Grey',
-    'Blue'
-  ],
+  labels:obj().labels,
   datasets: [{
     label: 'My First Dataset',
-    data: [11, 16, 7, 3, 14],
+    data: obj().maxArray,
     backgroundColor: [
       'rgb(255, 99, 132)',
       'rgb(75, 192, 192)',
@@ -72,7 +83,6 @@ return {
   for (let date of dates) {
     if (!last || (date - last)  >= n) {
       result.push(date); 
-      console.log(date-last) 
       last = date;
     }
   }
@@ -86,7 +96,7 @@ function App() {
   const [data, setdata] = useState([])
 
   useEffect(()=>{
-    console.log( fiterEvenDays(data.map((e)=> e[GameData.dataPlayed]),3))
+  //  console.log( fiterEvenDays(data.map((e)=> e[GameData.dataPlayed]),3))
   },[data]
 )
 
@@ -105,8 +115,10 @@ function App() {
   return (
     <>
     <LineChart chartData={dataFilter(data).lineCharData}/>
+
+    <PolarArea key={1} data={dataFilter(data).poloarAreaChartData}  />
     
-    <ExcelCsvReader getData={(d)=>{
+    <ExcelCsvReader key={2} getData={(d)=>{
       setdata(d)
     }}/>
 
