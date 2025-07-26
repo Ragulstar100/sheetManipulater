@@ -29,11 +29,6 @@ export function ExcelCsvReader({getData}) {
         return;
       }
       getData(data)
-      // data.forEach((e,i)=>{
-      //    console.log("✅ Parsed Data:",i,e['Game Id']);
-      // })
-     
-      // You can also set to state or store in IndexedDB
     };
 
     if (isExcel) {
@@ -44,7 +39,7 @@ export function ExcelCsvReader({getData}) {
   };
 
   return (
-    <div className="p-4 border rounded shadow w-fit">
+    <div className="p-4 border rounded shadow w-100">
       <input
         type="file"
         accept=".xlsx,.xls,.csv"
