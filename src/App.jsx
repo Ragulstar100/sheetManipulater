@@ -1,15 +1,63 @@
-import { useEffect, useReducer, useState, useRef } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import * as echarts from 'echarts';
+import { useEffect, useState, useRef } from 'react'
 import './App.css'
-import { Line, PolarArea } from 'react-chartjs-2';
+import './dataHandler'
+import {lineChartData,polorRadarData,multiBarData,linePieCompo,Chart,ChartCombo} from './charts'
+
 import { ExcelCsvReader, excelDateToJSDate } from './assets/ExcelCsvReader';
 
 
 
+const GameData = { score: "Score", datePlayed: "Date Played", gameName: 'Game Name', levelReached: 'Level Reached', timePlayed: 'Time Played', playerName: 'Player Name' }
 
-const GameData = { score: "Score", dataPlayed: "Date Played", gameName: 'Game Name', levelReached: 'Level Reached', timePlayed: 'Time Played', playerName: 'Player Name' }
+function dataChart(data) {
+
+  //Covert Serial Excel Date to Js Date
+  let notSerialdays = data.map((e) => excelDateToJSDate(e[GameData.datePlayed]))
+  let even3days = filterEvenDays(notSerialdays, 3)
+  let dmFormate = even3days.map((e) => `${e.getDate()}/${e.getMonth()}`)
+
+  let gameScores = data.selectByKey(GameData.score)
+  let uniqueGames = data.getUniqueData(GameData.gameName)
+  let uiquePalyerNames=data.getUniqueData(GameData.playerName)
+
+
+  //MaxLevelReched Player Invidual games
+  let maxLevelReached = data.groupBy(GameData.gameName).map((e,v)=>Math.max(...v.selectByKey(GameData.levelReached)))
+
+    //List Total Played Each Player In Each Game
+   let barChartBulider = data.groupBy(GameData.playerName).map((game,v)=>{ 
+    let obj={Games:game}
+      v.groupBy(GameData.gameName).map((player,w)=>{
+          obj[player]=w.sum(GameData.timePlayed,"min")
+      })
+      return obj
+   } )
+
+   //Each day How Minutes how many Player Played
+   let _gamesVsTimeData = [["Dates",...dmFormate]].concat(data.groupBy(GameData.gameName).map((game,v)=>{
+    return [game].concat(...v.selectByKey(GameData.score))
+   }) )
+   
+
+  
+
+  return {
+    //GameScore Vs Date Data
+    scoreVsDateData: lineChartData(dmFormate, gameScores),
+    //Games Vs Max Level Reached EachPlayer
+    gamesVsMlr: polorRadarData(uniqueGames, maxLevelReached),
+    //GamesVsPalyer Based TotalTimePlayed
+    gamesVsTtpip:multiBarData(["Games",...uniqueGames],barChartBulider),
+    //Games Vs NumperOf Player played minutes percentage
+    gamesVsTimeData:linePieCompo( 
+      _gamesVsTimeData
+      )
+
+
+  }
+
+}
+
 
 //Filter My Raw data
 function gameFilterData(data) {
@@ -25,8 +73,8 @@ function gameFilterData(data) {
     playerName: Array.from(new Set(data.map((e) => e[GameData.playerName]))),
     maxArray: _maxArray,
     filterEven: () => {
-      let datesPlayed = data.map((game_entry) => game_entry[GameData.dataPlayed]);
-      let filter_dates = fiterEvenDays(datesPlayed, 3);
+      let datesPlayed = data.map((game_entry) => game_entry[GameData.datePlayed]);
+      let filter_dates = filterEvenDays(datesPlayed, 3);
       return filter_dates;
 
     }
@@ -34,161 +82,10 @@ function gameFilterData(data) {
 }
 
 
-//Filter My Data Flow Chart
-function dataFilter(data) {
-  let obj = () => gameFilterData(data)
-
-  const timeData = {
-    legend: {},
-    tooltip: {
-      trigger: 'axis',
-      showContent: false
-    },
-    dataset: {
-      source: [
-        ['Games'].concat(obj().filterEven()),
-        ...obj().labels.map((e, i) => {
-          return [obj().labels[i]].concat(data.filter((e) => e[GameData.gameName] == obj().labels[i]).map((e) => (parseInt(e[GameData.timePlayed].split(' ')[0]))))
-        })
-      ]
-    },
-    xAxis: { type: 'category' },
-    yAxis: { gridIndex: 0 },
-    grid: { top: '55%' },
-    series: [
-      {
-        type: 'line',
-        smooth: true,
-        seriesLayoutBy: 'row',
-        emphasis: { focus: 'series' }
-      },
-      {
-        type: 'line',
-        smooth: true,
-        seriesLayoutBy: 'row',
-        emphasis: { focus: 'series' }
-      },
-      {
-        type: 'line',
-        smooth: true,
-        seriesLayoutBy: 'row',
-        emphasis: { focus: 'series' }
-      },
-      {
-        type: 'line',
-        smooth: true,
-        seriesLayoutBy: 'row',
-        emphasis: { focus: 'series' }
-      },
-      {
-        type: 'pie',
-        id: 'pie',
-        radius: '30%',
-        center: ['50%', '25%'],
-        emphasis: {
-          focus: 'self'
-        },
-        // label: {
-        //   formatter: '{b}: {@2012} ({d}%)'
-        // },
-        // encode: {
-        //   itemName: 'product',
-        //   value: '2012',
-        //   tooltip: '2012'
-        // }
-      }
-    ]
-  };
 
 
 
-  let barChartBulider = (() => {
-    let list = []
-    obj().playerName.forEach((e) => {
-      let local = { "Games": e }
-      data.forEach((g) => {
-        local[g[GameData.gameName]] = data.filter((f) => (f[GameData.gameName] == g[GameData.gameName]) || f[GameData.playerName] == e).reduce((acc, r) => acc + parseInt(r[GameData.timePlayed].split(' ')[0]), 0)
-      })
-      list.push(local)
-    })
-    console.log(list)
-    return list
-  })
-
-
-  return {
-    rawData: data,
-    update: () => { dataFilter(data); return data },
-    timePalyedData: timeData,
-    totalPlayedData: {
-      legend: {},
-      tooltip: {},
-      dataset: {
-        dimensions: ['Games', ...obj().labels],
-        source: barChartBulider()
-
-      },
-      xAxis: { type: 'category' },
-      yAxis: {},
-      // Declare several bar series, each will be mapped
-      // to a column of dataset.source by default.
-      series: [{ type: 'bar' }, { type: 'bar' }, { type: 'bar' }, { type: 'bar' }]
-    },
-    lineCharData: {
-      title: {
-        text: 'Line Chart Example'
-      },
-      tooltip: {
-        trigger: 'axis'
-      },
-      xAxis: {
-        type: 'category',
-        data: obj().filterEven()
-      },
-      yAxis: {
-        type: 'value'
-      },
-      series: [
-        {
-          name: 'Game score',
-          type: 'line',
-          data: data.map((e) => e[GameData.score]),
-          smooth: true
-        }
-      ]
-    },
-
-    poloarAreaChartData: {
-      angleAxis: {
-        type: 'category',
-        data: obj().labels.concat('blue')
-      },
-      radiusAxis: {},
-      polar: {},
-      series: [
-        {
-          type: 'bar',
-          data: obj().maxArray,
-          coordinateSystem: 'polar',
-          name: 'A',
-          stack: 'a',
-          emphasis: {
-            focus: 'series'
-          }
-        }
-      ],
-      legend: {
-        show: true,
-        data: obj().labels
-      }
-    }
-  }
-
-}
-
-
-
-function fiterEvenDays(data, n) {
+function filterEvenDays(data, n) {
 
   const dates = data.sort((a, b) => a - b);
 
@@ -214,48 +111,33 @@ function App() {
 
   const [name, setName] = useState('All')
 
-  useEffect(() => {
-    // console.log(data.map((e)=>(  parseInt(e[GameData.timePlayed].split(' ')[0])) ))
-  }, [data]
-  )
-
-  
-
 
   return (
     <>
-      <div className='flex flex-col'>
-        <div className='flex gap-5 justify-end items-start'>
-          <ExcelCsvReader getData={(d) => {
-            setdata(d)
-          }} />
+      <div className='flex flex-col w-full'>
+
+        <div className='flex gap-5 justify-end items-start'> <ExcelCsvReader getData={(d) => { setdata(d) }} /> </div>
+
+        {data.length != 0 && <div>
+
+          <Dropdown label="Select Your PlayerName" className='w-fit justify-end' data={gameFilterData(data).playerName} onSelect={(v) => { setName(v) }} />
+
+          <div className='flex items-center'>
+            <Chart className='w-[100%] h-75' data={dataChart(data.filterByKey(GameData.playerName, name, "All")).scoreVsDateData} />
+
+            <Chart className='w-100 h-50' data={dataChart(data.filterByKey(GameData.playerName, name, "All")).gamesVsMlr} />
+          </div>
+
+          <ChartCombo data={dataChart(data).gamesVsTimeData} />
+
+
+          <Chart  className='w-screen h-100' data={dataChart(data.filterByKey(GameData.playerName, name, "All")).gamesVsTtpip} />
+
 
         </div>
-        {data.length != 0  && <div>
-        <Dropdown label="Select Your PlayerName" className='self-end' data={gameFilterData(data).playerName} onSelect={(v) => {
-            setName(v)
-          }} />
+        }
+      </div >
 
-
-        <Chart className='w-200 h-75' data={dataFilter(data.filter((e) => {
-          return name == 'All' || e[GameData.playerName] == name
-        })).lineCharData} />
-
-        <Chart className='w-100 h-50' data={dataFilter(data.filter((e) => {
-          return name == 'All' || e[GameData.playerName] == name
-        })).poloarAreaChartData} />
-
-
-
-      
-      <ChartCombo data={dataFilter(data).timePalyedData} />
-      <Chart className='w-screen h-100' data={dataFilter(data.filter((e) => {
-        return name == 'All' || e[GameData.playerName] == name
-      })).totalPlayedData} />
-      </div>
-    }
-    </div >
-    
     </>
   )
 }
@@ -264,62 +146,6 @@ function App() {
 
 
 
-function Chart({ data, className }) {
-  const chartRef = useRef(null);
-
-  useEffect(() => {
-    const chartInstance = echarts.init(chartRef.current);
-    chartInstance.setOption(data);
-
-    return () => {
-      chartInstance.dispose();
-    };
-  }, [data]);
-
-  return <div ref={chartRef} className={className} />;
-};
-
-
-function ChartCombo({ data }) {
-  const chartRef = useRef(null);
-
-  useEffect(() => {
-    const chart = echarts.init(chartRef.current);
-
-
-
-    chart.setOption(data);
-
-    chart.on('updateAxisPointer', function (event) {
-      const xAxisInfo = event.axesInfo?.[0];
-      if (xAxisInfo) {
-        const dimension = xAxisInfo.value + 1;
-        chart.setOption({
-          series: {
-            id: 'pie',
-            label: {
-              formatter: `{b}: {@[${dimension}]} ({d}%)`
-            },
-            encode: {
-              value: dimension,
-              tooltip: dimension
-            }
-          }
-        });
-      }
-    });
-
-    const handleResize = () => chart.resize();
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      chart.dispose();
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [data]);
-
-  return <div ref={chartRef} style={{ width: '100%', height: '500px' }} />;
-};
 
 
 export function Dropdown({ className, data, label, onSelect }) {
@@ -356,6 +182,7 @@ export function Dropdown({ className, data, label, onSelect }) {
     </div>
   );
 }
+
 
 
 
